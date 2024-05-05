@@ -1,44 +1,62 @@
 # main.py
 from datetime import datetime, timedelta
-from typing import Any, Union
 
-from decouple import config
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer, HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from starlette.requests import Request
 
 import settings
-from schemas import User
-from settings import SECRET_KEY
+from schemas.inventory import Inventory
+from schemas.users import UserBase, UserType
 
 # JWT Configuration
 ALGORITHM = settings.JWT_ALGORITHM
 ACCESS_TOKEN_EXPIRE_MINUTES = settings.JWT_ACCESS_TOKEN_EXPIRY# 30 minutes
 REFRESH_TOKEN_EXPIRE_MINUTES = settings.JWT_REFRESH_TOKEN_EXPIRY
 JWT_SECRET = settings.JWT_SECRET_KEY
+JWT_ISSUER = settings.JWT_ISSUER
 
 
 # Function to create JWT token
 
-def create_access_token(user: User, expires_delta: int = None) -> str:
+def convert_payload_to_base_model(payload:dict):
+	user_type = payload.pop("user_type", None)
+	payload["staff_id"] = None
+	payload["customer_id"] = None
+	payload["admin_id"] = None
+
+	if user_type == UserType.ADMINISTRATOR:
+		payload["admin_id"] = payload["id"]
+		payload["id"] = payload.pop("user_id")
+	elif user_type == UserType.STAFF:
+		payload["staff_id"] = payload["id"]
+		payload["id"] = payload.pop("user_id")
+	elif payload["user_type"] == UserType.CUSTOMER:
+		payload["customer_id"] = payload["id"]
+		payload["id"] = payload.pop("user_id")
+	else:
+		raise HTTPException(detail="Invalid user type", status_code=400)
+	return UserBase(**payload)
+
+def create_access_token(user: UserBase, expires_delta: int = None) -> str:
 	if expires_delta is not None:
 		expires_delta = datetime.utcnow() + timedelta(minutes=expires_delta)
 	else:
 		expires_delta = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
 
-	to_encode = {"exp": expires_delta, "user": user.dict()}
-	encoded_jwt = jwt.encode(to_encode, SECRET_KEY, ALGORITHM)
+	to_encode = {"exp": expires_delta, "user": user.model_dump(), "iss": JWT_ISSUER}
+	encoded_jwt = jwt.encode(to_encode, JWT_SECRET, ALGORITHM)
 	return encoded_jwt
 
 
-def create_refresh_token(user: User, expires_delta: int = None) -> str:
+def create_refresh_token(user: Inventory, expires_delta: int = None) -> str:
 	if expires_delta is not None:
 		expires_delta = datetime.utcnow() + timedelta(minutes=expires_delta)
 	else:
 		expires_delta = datetime.utcnow() + timedelta(minutes=REFRESH_TOKEN_EXPIRE_MINUTES)
 
-	to_encode = {"exp": expires_delta, "user": user.dict()}
+	to_encode = {"exp": expires_delta, "user": user.dict(), "iss":JWT_ISSUER}
 	encoded_jwt = jwt.encode(to_encode, JWT_SECRET, ALGORITHM)
 	return encoded_jwt
 
@@ -50,13 +68,13 @@ def decode_access_token(token: str):
 		detail="Could not validate credentials",
 		headers={"WWW-Authenticate": "Bearer"})
 	try:
-		payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-
+		payload = jwt.decode(token, JWT_SECRET, algorithms=ALGORITHM, issuer=JWT_ISSUER)
 		if datetime.utcnow().__ge__(datetime.fromtimestamp(payload['exp'])):
 			error['detail'] = "Expired access token"
 			raise HTTPException(**error)
-		return payload['user']
-	except JWTError:
+		return convert_payload_to_base_model(payload['user'])
+	except JWTError as e:
+		print(e)
 		raise HTTPException(**error)
 
 
@@ -70,14 +88,14 @@ def validate_refresh_token(token: str):
 		if datetime.utcnow().__ge__(datetime.fromtimestamp(payload['exp'])):
 			error['detail'] = "Expired refresh token"
 			raise HTTPException(**error)
-		return payload['user']
+		return convert_payload_to_base_model(payload['user'])
 	except JWTError:
 		raise HTTPException(**error)
 
 
 def refresh_access_token(refresh_token: str):
 	user = validate_refresh_token(refresh_token)
-	return create_access_token(User(**user))
+	return create_access_token(user)
 
 
 class JWTBearer(HTTPBearer):
@@ -95,12 +113,13 @@ class JWTBearer(HTTPBearer):
 		else:
 			raise HTTPException(status_code=403, detail="Invalid authorization code.")
 
-	def verify_jwt(self, jwtoken: str) -> bool:
-		isTokenValid: bool = False
-		payload = decode_access_token(jwtoken)
+	@staticmethod
+	def verify_jwt(token: str) -> bool:
+		is_token_valid: bool = False
+		payload = decode_access_token(token)
 		if payload:
-			isTokenValid = True
-		return isTokenValid
+			is_token_valid = True
+		return is_token_valid
 
 
 oauth2_scheme = JWTBearer()

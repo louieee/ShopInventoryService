@@ -1,7 +1,10 @@
+import logging
 from typing import List, Any
 
 from fastapi import Query, Depends
 from starlette.responses import JSONResponse, Response
+
+from helpers.exceptions import AuthorizationError, ValidationError, NotFoundError, AuthenticationError
 
 
 class SuccessResponse:
@@ -40,3 +43,12 @@ def paginated_list(page: int, per_page: int, items: List[Any]):
 	start = (page - 1) * per_page
 	end = start + per_page
 	return items[start:end]
+
+def exception_quieter(func):
+	async def inner(*args, **kwargs):
+		try:
+			logging.critical("my quieter is here")
+			return await func(*args, **kwargs)
+		except (AuthenticationError, AuthorizationError, ValidationError, NotFoundError) as e:
+			return FailureResponse(message=e.detail, status=e.status)
+	return inner

@@ -15,7 +15,7 @@ Base = declarative_base()
 
 def create_db():
 	with engine.begin() as conn:
-		from models import User, Address
+		from models import Product, ProductFile, Brand, Inventory, Staff, Customer, Order
 		Base.metadata.create_all(bind=conn)
 	engine.dispose()
 

@@ -3,7 +3,7 @@ from typing import Tuple, List
 from fastapi import APIRouter
 from pydantic import BaseModel
 from starlette.websockets import WebSocket, WebSocketDisconnect
-from schemas import User
+from schemas.inventory import Inventory
 from settings.jwt_config import get_current_user
 
 router = APIRouter(prefix="/ws", tags=['websocket'])
@@ -19,11 +19,11 @@ class Payload(BaseModel):
 def is_authenticated(scope):
 	token = scope['path_params']['token']
 	user = get_current_user(token)
-	user = User(**user)
+	user = Inventory(**user)
 	return user_channels(user)
 
 
-def user_channels(user: User) -> Tuple[List[str], User]:
+def user_channels(user: Inventory) -> Tuple[List[str], Inventory]:
 	channels = ["general", f"user_{user.id}"]
 	# if not user.is_admin:
 	# 	channels.append("broadcast")
