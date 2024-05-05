@@ -143,3 +143,4 @@ alembic.ini
 
 ws_test.py
 celerybeat-schedule.db
+.idea

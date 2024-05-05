@@ -133,7 +133,7 @@ class SaleRepository(BaseRepository):
 		params = dict()
 		if search:
 			querystring = f"{querystring} {'where' if 'where' not in querystring else 'and'} location ilike :search or customer ilike :search"
-			params["search"] = search
+			params["search"] = f"%{search}%"
 		if paid is not None:
 			querystring = f"{querystring} {'where' if 'where' not in querystring else 'and'} paid = :paid"
 			params["paid"] = paid
@@ -152,6 +152,12 @@ class SaleRepository(BaseRepository):
 		params["limit"] = limit
 		return {"count": count, "results": self.db.execute(text(querystring), params).mappings().all()}
 
+	@permission_access(customer=False, staff=False)
+	async def assign_staff_to_orders(self, staff_id:int, order_ids:List[int]):
+		querystring = "update orders set staff_id = :staff_id where id in :ids ;"
+		self.db.execute(text(querystring), {"staff_id": staff_id, "ids": order_ids})
+		self.db.commit()
+		return SuccessResponse(message="Staffs have been successfully assigned to selected orders")
 
 
 
