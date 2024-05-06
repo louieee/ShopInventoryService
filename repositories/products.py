@@ -2,7 +2,9 @@ from fastapi import UploadFile
 from sqlalchemy import text
 
 import models
+from helpers.exceptions import ValidationError
 from .helpers import *
+from schemas import products as schemas
 
 
 class ProductRepository(BaseRepository):
@@ -61,9 +63,11 @@ class ProductRepository(BaseRepository):
 		querystring = text(querystring)
 		return dict(results=self.db.execute(querystring, params).mappings().all(), count=count)
 
-
+	@exception_quieter
 	async def get_by_id(self, id: int, exists=False):
 		product = await self.get(id=id, exists=exists)
+		if not product:
+			raise NotFoundError("This product does not exist")
 		return product
 
 	async def get_by_name(self, name:str, brand_id:int=None, inventory_id:int=None, exclude_id:int=None, exists=False):
@@ -88,7 +92,15 @@ class ProductRepository(BaseRepository):
 		return result[0] if result else None
 
 
-	async def create(self, item: BaseModel, **kwargs):
+	@exception_quieter
+	async def create(self, item: schemas.CreateProduct, **kwargs):
+		product_exist = await self.get_by_name(name=item.name,
+		                                       inventory_id=item.inventory_id,
+		                                       brand_id=item.brand_id,
+		                                       exists=True)
+		if product_exist:
+			raise ValidationError(detail="This product already exists")
+
 		images: List[UploadFile] = kwargs.pop("images", list())
 		product: models.Product = await super(ProductRepository, self).create(item, **kwargs)
 		for image in images:
@@ -98,7 +110,13 @@ class ProductRepository(BaseRepository):
 
 		return product
 
+	@exception_quieter
 	async def add_images(self, id, images: List[UploadFile]):
+
+		product_exist = await self.get_by_id(id=id, exists=True)
+		if not product_exist:
+			raise NotFoundError(detail="This product does not exist")
+
 		product_files = [models.ProductFile.save(name=image.filename,
 			                                       content=await image.read(),
 			                                       product_id=id)
@@ -108,7 +126,12 @@ class ProductRepository(BaseRepository):
 		return await self.get_by_id(id=id)
 
 
+	@exception_quieter
 	async def delete_images(self, id, image_ids: List[int]):
+		product_exist = await self.get_by_id(id=id, exists=True)
+		if not product_exist:
+			raise ValidationError(detail="This product does not exist")
+
 		query = self.db.query(models.ProductFile).filter(models.ProductFile.id.in_(image_ids),
                         models.ProductFile.product_id.in_([id]))
 		for img in query:
@@ -117,6 +140,18 @@ class ProductRepository(BaseRepository):
 		self.db.commit()
 		return await self.get_by_id(id=id)
 
+	@exception_quieter
+	async def update(self, id: int, new_data: schemas.CreateProduct):
+		product_exist = await self.get_by_id(id=id, exists=True)
+		if not product_exist:
+			raise NotFoundError(detail="This product does not exist")
+
+		details_exist = await self.get_by_name(name=new_data.name, inventory_id=new_data.inventory_id,
+		                                       brand_id=new_data.brand_id, exclude_id=id,
+		                                       exists=True)
+		if details_exist:
+			raise ValidationError(detail="A product with this name already exists")
+		return await super().update(id=id, new_data=new_data)
 
 class ProductFileRepository(BaseRepository):
 	model = models.ProductFile

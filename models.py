@@ -112,14 +112,14 @@ class Order(Base):
 	staff_id: Mapped[int] = Column(Integer, ForeignKey("staffs.id"))
 	staff = relationship("Staff", back_populates="orders_processed")
 	quantity: Mapped[int] = mapped_column(Integer())
-	delivered: Mapped[bool] = mapped_column(Boolean())
-
+	delivered: Mapped[bool] = mapped_column(Boolean(), default=False)
+	date_delivered: Mapped[datetime] = mapped_column(DateTime(), default=None, nullable=True)
 
 
 class Sale(Base):
 	__tablename__ = "sales"
 	id: Mapped[int] = mapped_column(primary_key=True)
-	paid: Mapped[bool] = mapped_column(Boolean())
+	paid: Mapped[bool] = mapped_column(Boolean(), default=False)
 	date_ordered: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 	date_paid: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
 	customer_id: Mapped[int] = Column(Integer, ForeignKey("customers.id"))

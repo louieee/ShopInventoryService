@@ -47,7 +47,6 @@ def paginated_list(page: int, per_page: int, items: List[Any]):
 def exception_quieter(func):
 	async def inner(*args, **kwargs):
 		try:
-			logging.critical("my quieter is here")
 			return await func(*args, **kwargs)
 		except (AuthenticationError, AuthorizationError, ValidationError, NotFoundError) as e:
 			return FailureResponse(message=e.detail, status=e.status)
