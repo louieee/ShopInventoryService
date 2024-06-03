@@ -21,6 +21,25 @@ JWT_ISSUER = settings.JWT_ISSUER
 # Function to create JWT token
 
 def convert_payload_to_base_model(payload:dict):
+	"""
+	id: int
+	user_id: int
+	user_type: str "Administrator"| "Staff" | "Customer"
+	first_name: str
+	last_name: str
+	email: str
+
+	TO
+
+	id: int
+	first_name: str
+	last_name: str
+	email: str
+	customer_id : Optional[int]
+	staff_id: Optional[int]
+	admin_id: Optional[int]
+
+	"""
 	user_type = payload.pop("user_type", None)
 	payload["staff_id"] = None
 	payload["customer_id"] = None

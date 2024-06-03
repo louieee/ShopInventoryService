@@ -10,6 +10,7 @@ from settings.celery_config import celery  # noqa
 from settings.database import create_db
 from middlewares import LoggingMiddleware
 import sentry_sdk
+from services.rabbit_mq_service.main import rabbit_mq_service
 
 sentry_sdk.init(
 	dsn="",
@@ -26,6 +27,7 @@ middlewares = [
 ]
 
 create_db()
+rabbit_mq_service.consume_in_background()
 app = FastAPI(middleware=middlewares)
 
 @app.get("/sentry-debug")
