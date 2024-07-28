@@ -16,3 +16,12 @@ class UserBase(BaseModel):
 	staff_id: Optional[int]
 	admin_id: Optional[int]
 
+
+class CustomerBase(BaseModel):
+	id: int
+	name: str
+
+
+class StaffBase(BaseModel):
+	id: int
+	name: str

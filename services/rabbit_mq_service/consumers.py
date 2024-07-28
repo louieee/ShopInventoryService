@@ -1,7 +1,11 @@
+import dataclasses
+import json
 from collections import namedtuple
 from typing import Protocol
 
 from pika.channel import Channel
+
+from services.rabbit_mq_service.listeners import UserListener
 
 
 class Queues:
@@ -29,22 +33,23 @@ class Consumer(Protocol):
 		print(f" [x] Received {message}")
 		return
 
-
-class AccountConsumer(Consumer):
-	queue_name = Queues.AccountQueue
-
-
-
-class ReportConsumer(Consumer):
-	queue_name = Queues.ReportQueue
-
+@dataclasses.dataclass
+class RabbitMQPayload:
+	action: str
+	data_type : str
+	data: str
 
 
 class InventoryConsumer(Consumer):
 	queue_name = Queues.InventoryQueue
 
+	@staticmethod
+	def handle_message(message: str):
+		payload = json.loads(message)
+		payload = RabbitMQPayload(**payload)
+		if payload.data_type == "user":
+			UserListener.handle_user_data(payload.action, payload.data)
+		return
 
 
-class ChatConsumer(Consumer):
-	queue_name = Queues.ChatQueue
 
