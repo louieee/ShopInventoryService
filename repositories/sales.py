@@ -3,14 +3,13 @@ from datetime import datetime
 from typing import List
 
 from fastapi import Query
-from pydantic import BaseModel
-from sqlalchemy import text, True_
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 import models
 from helpers.exceptions import ValidationError, NotFoundError, AuthorizationError
 from helpers.permissions import permission_access
-from helpers.response import FailureResponse, exception_quieter, SuccessResponse
+from helpers.response import exception_quieter, SuccessResponse
 from models import Order
 from repositories.base import BaseRepository
 from schemas import sales as schemas
@@ -146,7 +145,10 @@ class SaleRepository(BaseRepository):
 
 	async def get_by_id(self, id: int):
 		querystring = text("select * from sales_view where id = :id ;")
-		sale_detail = dict(self.db.execute(querystring, {"id": id}).mappings().first())
+		sale_detail = self.db.execute(querystring, {"id": id}).mappings().first()
+		if not sale_detail:
+			return None
+		sale_detail = dict(sale_detail)
 		querystring = text("select * from orders_view where sale_id = :id ;")
 		orders = self.db.execute(querystring, {"id": id}).mappings().all()
 		sale_detail["orders"] = orders
@@ -237,7 +239,6 @@ class SaleRepository(BaseRepository):
 	async def send_orders_post_save_signals(self, order_ids:List[int]):
 		for order_id in order_ids:
 			await post_save.send(order_id, created=False, db=self.db, user=self.user)
-			logging.critical("done")
 		return
 
 

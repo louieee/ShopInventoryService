@@ -10,10 +10,9 @@ from signals.helpers import post_save, pre_delete
 
 async def delete_product_file(sender: ProductFile, *args, **kwargs):
 	sender.delete_file()
-	logging.critical("deleted product file")
+
 
 async def publish_saved_product(sender: Product, *args, **kwargs):
-	logging.critical("published")
 	created = kwargs.get("created", False)
 	product = ProductDetailResponse.model_validate(sender)
 	payload = RabbitMQPayload(

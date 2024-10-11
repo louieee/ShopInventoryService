@@ -2,7 +2,7 @@ import json
 from typing import Optional
 
 from sqlalchemy.orm import Session
-from sqlalchemy.testing.plugin.plugin_base import logging
+import logging
 
 from repositories.sales import SaleRepository
 from schemas.sales import FullOrderListItem, FullSaleListItem
@@ -12,7 +12,6 @@ from signals.helpers import post_save, pre_delete
 
 
 async def publish_saved_order(sender: int, *args, **kwargs):
-	logging.critical("published")
 	created = kwargs.get("created", False)
 	db:Optional[Session] = kwargs.pop("db", None)
 	user = kwargs.pop("user", None)
@@ -28,11 +27,12 @@ async def publish_saved_order(sender: int, *args, **kwargs):
 			product_id=order.product_id,
 			sale_id=order.sale_id,
 			quantity=order.quantity,
+			staff_id=order.staff_id,
 			delivered=order.delivered,
 			total_amount=order.total_price,
 			date_delivered=order.date_delivered
 		).as_dict()))
-	rabbit_mq_service.publish(queues={"report_queue"}, data=payload)
+	rabbit_mq_service.publish_in_background(queues={"report_queue"}, data=payload)
 
 async def publish_deleted_order(sender: int, *args, **kwargs):
 	db:Optional[Session] = kwargs.pop("db", None)
@@ -53,7 +53,7 @@ async def publish_deleted_order(sender: int, *args, **kwargs):
 			total_amount=order.total_price,
 			date_delivered=order.date_delivered
 		).as_dict()))
-	rabbit_mq_service.publish(queues={"report_queue"}, data=payload)
+	rabbit_mq_service.publish_in_background(queues={"report_queue"}, data=payload)
 
 
 async def publish_saved_sale(sender: int, *args, **kwargs):
@@ -63,6 +63,8 @@ async def publish_saved_sale(sender: int, *args, **kwargs):
 	if not db or not user:
 		return
 	sale = await SaleRepository(db=db, user=user).get_by_id(sender)
+	if not sale:
+		return
 	sale = FullSaleListItem.model_validate(sale)
 	payload = RabbitMQPayload(
 		action="create" if created else "update",
@@ -75,7 +77,7 @@ async def publish_saved_sale(sender: int, *args, **kwargs):
 			date_ordered=sale.date_ordered,
 			date_paid=sale.date_paid
 		).as_dict()))
-	rabbit_mq_service.publish(queues={"report_queue"}, data=payload)
+	rabbit_mq_service.publish_in_background(queues={"report_queue"}, data=payload)
 
 async def publish_deleted_sale(sender: int, *args, **kwargs):
 	db:Optional[Session] = kwargs.pop("db", None)
@@ -95,9 +97,9 @@ async def publish_deleted_sale(sender: int, *args, **kwargs):
 			date_ordered=sale.date_ordered,
 			date_paid=sale.date_paid
 		).as_dict()))
-	rabbit_mq_service.publish(queues={"report_queue"}, data=payload)
+	rabbit_mq_service.publish_in_background(queues={"report_queue"}, data=payload)
 
-post_save.connect(publish_saved_order)
-pre_delete.connect(publish_deleted_order)
-post_save.connect(publish_saved_sale)
-pre_delete.connect(publish_deleted_sale)
+post_save.connect(publish_saved_order, int)
+pre_delete.connect(publish_deleted_order, int)
+post_save.connect(publish_saved_sale, int)
+pre_delete.connect(publish_deleted_sale, int)

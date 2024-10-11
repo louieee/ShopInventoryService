@@ -37,7 +37,6 @@ class Consumer(Protocol):
 
 class InventoryConsumer(Consumer):
 	queue_name = Queues.InventoryQueue
-
 	@staticmethod
 	def handle_message(message: str):
 		payload = json.loads(message)

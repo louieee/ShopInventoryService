@@ -1,0 +1,2 @@
+from services.rabbit_mq_service.main import rabbit_mq_service
+rabbit_mq_service.consume()
