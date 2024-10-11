@@ -9,6 +9,8 @@ from helpers.decorators import singleton
 from services.rabbit_mq_service.consumers import ExchangeType, Consumer
 from decouple import config
 
+from services.rabbit_mq_service.payload_schemas import RabbitMQPayload
+
 # Define the connection parameters to connect to RabbitMQ server
 connection_params = pika.ConnectionParameters(host=config("RABBIT_MQ_HOST"), port=config("RABBIT_MQ_PORT"),
                                               credentials=pika.PlainCredentials(config("RABBIT_MQ_USERNAME"),
@@ -30,8 +32,8 @@ class RabbitMQService:
 			self.channel.queue_declare(queue=consumer.queue_name, passive=True)
 		print("connected to rabbitmq")
 
-	def publish(self, queues: set[str], data: dict):
-		data = json.dumps(data)
+	def publish(self, queues: set[str], data: RabbitMQPayload):
+		data = json.dumps(data.__dict__)
 		queues = self.queues.intersection(queues)
 		for queue in queues:
 			self.channel.queue_bind(queue=queue, exchange=self.exchange.name)

@@ -1,17 +1,24 @@
-from fastapi import UploadFile
+from typing import List
+
+from fastapi import UploadFile, Query
 from sqlalchemy import text
+from sqlalchemy.orm import Session
+import logging
 
 import models
-from helpers.exceptions import ValidationError
-from .helpers import *
+from helpers.exceptions import ValidationError, NotFoundError
+from helpers.response import exception_quieter
 from schemas import products as schemas
+from signals.helpers import pre_delete, post_save
+from .base import BaseRepository
 
 
 class ProductRepository(BaseRepository):
 
-	def __init__(self, *args, **kwargs):
-		super().__init__(*args, **kwargs)
+	def __init__(self, db: Session, user=None):
+		super().__init__(db=db, user=user)
 		self.model = models.Product
+
 
 	@staticmethod
 	def query_parameters(brands: list[int] = Query(default=None, title="brands", description="filter by brands"),
@@ -107,7 +114,6 @@ class ProductRepository(BaseRepository):
 			models.ProductFile.save(name=image.file.name,
 			                        content=image.file.read(),
 			                        product_id=product.id)
-
 		return product
 
 	@exception_quieter

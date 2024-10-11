@@ -26,6 +26,7 @@ class ProductBase(BaseModel):
 	inventory_id: int
 	price: float
 	quantity: int
+	category: str
 
 
 class CreateProduct(ProductBase):
@@ -42,6 +43,7 @@ class ProductDetailResponse(BaseModel):
 	inventory: Inventory
 	price: float
 	quantity: int
+	category: str
 	images : List[ProductImage]
 
 

@@ -30,6 +30,9 @@ class SaleListItem(BaseModel):
 	orders_count: int
 	total_amount: float
 
+class FullSaleListItem(SaleListItem):
+	location: str
+
 class SaleListResponse(BaseModel):
 	count: int
 	results: List[SaleListItem]
@@ -44,7 +47,9 @@ class OrderListItem(OrderItem):
 	staff_id: Optional[int]
 	staff: Optional[str] # staff's name
 
-
+class FullOrderListItem(OrderListItem):
+	sale_id: int
+	date_delivered: Optional[datetime]
 
 class SalesDetailResponse(SaleListItem):
 	orders: List[OrderListItem]

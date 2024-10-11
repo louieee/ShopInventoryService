@@ -1,20 +1,23 @@
+from abc import ABC, abstractmethod
 from typing import List, Optional
 
 from fastapi import Query
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 import schemas.users
 from helpers.exceptions import NotFoundError
 from helpers.response import exception_quieter, SuccessResponse
-from signals import post_save, pre_save, pre_delete
+from signals.helpers import post_save, pre_save, pre_delete
 
 
-class BaseRepository:
+class BaseRepository(ABC):
 	model = None
-	db = None
+	db: Optional[Session] = None
 	user:Optional[schemas.users.UserBase] = None
 
-	def __init__(self, db, user=None):
+	@abstractmethod
+	def __init__(self, db:Session, user=None):
 		self.db = db
 		self.user = user
 

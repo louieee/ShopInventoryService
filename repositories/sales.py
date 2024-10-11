@@ -4,21 +4,23 @@ from typing import List
 
 from fastapi import Query
 from pydantic import BaseModel
-from sqlalchemy import text
+from sqlalchemy import text, True_
+from sqlalchemy.orm import Session
 
 import models
 from helpers.exceptions import ValidationError, NotFoundError, AuthorizationError
 from helpers.permissions import permission_access
 from helpers.response import FailureResponse, exception_quieter, SuccessResponse
-from repositories.helpers import BaseRepository
+from models import Order
+from repositories.base import BaseRepository
 from schemas import sales as schemas
-from signals import pre_save, post_save, pre_delete
+from signals.helpers import pre_save, post_save, pre_delete
 
 
 class SaleRepository(BaseRepository):
 
-	def __init__(self, *args, **kwargs):
-		super().__init__(*args, **kwargs)
+	def __init__(self, db: Session, user=None):
+		super().__init__(db=db, user=user)
 		self.model = models.Sale
 
 	@staticmethod
@@ -62,16 +64,14 @@ class SaleRepository(BaseRepository):
 		self.db.add(sale)
 		self.db.commit()
 		self.db.refresh(sale)
-		orders = [models.Order(**order, sale_id=sale.id) for order in orders]
-		self.db.bulk_save_objects(orders)
+		await self.add_orders(id=sale.id, orders=orders)
 		self.db.commit()
 		self.db.refresh(sale)
 		await post_save.send(sale, created=True)
 		return SuccessResponse(message="Sale created successfully")
 
 
-	async def update(self, id: int, new_data: BaseModel):
-		return FailureResponse(message="Sale cannot be updated")
+
 
 	@exception_quieter
 	async def add_orders(self, id:int, orders: List[schemas.OrderItem]):
@@ -80,7 +80,7 @@ class SaleRepository(BaseRepository):
 			raise NotFoundError(detail="This Sale does not exist")
 		if sale.paid:
 			raise ValidationError(detail="This sale is already paid for. Please create another sale.")
-		orders = [models.Order(**order.model_dump(), sale_id=id) for order in orders]
+		orders  = [Order(**order.model_dump()) for order in orders]
 		product_ids = [order.product_id for order in orders]
 		product_count = self.db.query(models.Product).filter(models.Product.id.in_(product_ids)).count()
 		if len(product_ids) != product_count:
@@ -88,6 +88,8 @@ class SaleRepository(BaseRepository):
 		self.db.bulk_save_objects(orders)
 		self.db.commit()
 		self.db.refresh(sale)
+		for order in orders:
+			await post_save.send(order.id, created=True, db=self.db, user=self.user)
 		return SuccessResponse(message="Orders added successfully")
 
 
@@ -99,7 +101,9 @@ class SaleRepository(BaseRepository):
 		if sale.paid:
 			raise ValidationError(detail="This sale is already paid for and cannot be edited")
 		querystring = text("delete from orders where sale_id = :id and id in :order_ids")
-		self.db.execute(querystring, {"id": id, "order_ids": order_ids})
+		for order_id in order_ids:
+			await pre_delete.send(order_id, db=self.db, user=self.user)
+		self.db.execute(querystring, {"id": id, "order_ids": tuple(order_ids)})
 		self.db.commit()
 		self.db.refresh(sale)
 		return SuccessResponse(message="Selected Orders have been removed successfully")
@@ -130,6 +134,10 @@ class SaleRepository(BaseRepository):
 		if self.user.customer_id == sale.customer_id:
 			raise AuthorizationError(detail="You are not the owner of this sale")
 		await pre_delete.send(sale)
+		querystring = text("select id from orders where sale_id = :id ;")
+		orders = self.db.execute(querystring, {"id": id}).mappings().all()
+		orders = [order["id"] for order in orders]
+		await self.remove_orders(id=id, order_ids=orders)
 		querystring = text("delete from sales where id = :id")
 		self.db.execute(querystring, {"id": id})
 		self.db.commit()
@@ -173,7 +181,7 @@ class SaleRepository(BaseRepository):
 
 
 	@exception_quieter
-	@permission_access(customer=False, admin=False)
+	@permission_access(customer=False, admin=True)
 	async def mark_order_as_delivered(self, order_id:int):
 		order = self.db.query(models.Order).filter(models.Order.id == order_id).first()
 		if not order:
@@ -185,6 +193,7 @@ class SaleRepository(BaseRepository):
 		querystring = "update orders set delivered = true, date_delivered = :now where id = :order_id ;"
 		self.db.execute(text(querystring), {"order_id": order_id, "now": datetime.now()})
 		self.db.commit()
+		await post_save.send(order_id, created=False, db=self.db, user=self.user)
 		return SuccessResponse(message="This order has been successfully marked as delivered")
 
 	@exception_quieter
@@ -199,8 +208,9 @@ class SaleRepository(BaseRepository):
 			raise ValidationError(detail="Some selected orders are already delivered and cannot be updated")
 
 		querystring = "update orders set staff_id = :staff_id where id in :ids ;"
-		self.db.execute(text(querystring), {"staff_id": staff_id, "ids": order_ids})
+		self.db.execute(text(querystring), {"staff_id": staff_id, "ids": tuple(order_ids)})
 		self.db.commit()
+		await self.send_orders_post_save_signals(order_ids)
 		return SuccessResponse(message="Staffs have been successfully assigned to selected orders")
 
 	@exception_quieter
@@ -212,10 +222,23 @@ class SaleRepository(BaseRepository):
 			raise ValidationError(detail="Some selected orders are already delivered and cannot be updated")
 
 		querystring = "update orders set staff_id = NULL where id in :ids ;"
-		self.db.execute(text(querystring), {"staff_id": staff_id, "ids": order_ids})
+		self.db.execute(text(querystring), {"staff_id": staff_id, "ids": tuple(order_ids)})
 		self.db.commit()
+		await self.send_orders_post_save_signals(order_ids)
 		return SuccessResponse(message="Staffs have been successfully removed from the selected orders")
 
+	async def get_order_by_id(self, order_id:int):
+		querystring = text("select * from orders_view where id = :id;")
+		orders = self.db.execute(querystring, {"id": order_id}).mappings().all()
+		if not orders:
+			return
+		return orders[0]
+
+	async def send_orders_post_save_signals(self, order_ids:List[int]):
+		for order_id in order_ids:
+			await post_save.send(order_id, created=False, db=self.db, user=self.user)
+			logging.critical("done")
+		return
 
 
 

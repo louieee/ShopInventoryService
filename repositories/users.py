@@ -1,19 +1,20 @@
 from fastapi import Query
 from pydantic import BaseModel
-from sqlalchemy import or_
+from sqlalchemy.orm import Session
 
 import models
 from helpers.exceptions import ValidationError, NotFoundError
 from helpers.response import exception_quieter
-from repositories.helpers import BaseRepository
-from signals import pre_save, post_save
+from repositories.base import BaseRepository
+from signals.helpers import pre_save, post_save
 
 
 class CustomerRepository(BaseRepository):
 
-	def __init__(self,*args, **kwargs):
-		super().__init__(*args, **kwargs)
+	def __init__(self, db: Session, user=None):
+		super().__init__(db=db, user=user)
 		self.model = models.Customer
+
 
 
 	@staticmethod

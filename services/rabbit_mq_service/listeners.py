@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from repositories.users import CustomerRepository, StaffRepository
 from schemas.users import CustomerBase, StaffBase
-from services.rabbit_mq_service.data import UserPayload
+from services.rabbit_mq_service.payload_schemas import UserPayload
 from settings.database import get_db, SessionLocal
 
 

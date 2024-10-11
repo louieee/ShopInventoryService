@@ -56,6 +56,7 @@ class Product(Base):
 
 	id: Mapped[int] = mapped_column(primary_key=True)
 	name: Mapped[str] = mapped_column(String(100))
+	category: Mapped[str] = mapped_column(String(50))
 	description: Mapped[str] = mapped_column(Text())
 	brand_id: Mapped[int] = Column(Integer, ForeignKey('brands.id'))
 	brand = relationship("Brand", back_populates="products")

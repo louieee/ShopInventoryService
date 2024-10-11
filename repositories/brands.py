@@ -2,14 +2,14 @@ from sqlalchemy import or_
 
 import models
 from helpers.exceptions import ValidationError
-from .helpers import *
+from .base import *
 from repositories.products import ProductRepository
 
 
 class BrandRepository(BaseRepository):
 
-	def __init__(self,*args, **kwargs):
-		super().__init__(*args, **kwargs)
+	def __init__(self, db: Session, user=None):
+		super().__init__(db=db, user=user)
 		self.model = models.Brand
 
 

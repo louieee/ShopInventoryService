@@ -6,11 +6,11 @@ def permission_access(customer:bool=True, admin:bool=True, staff:bool=True):
 		async def inner(self, *args, **kwargs):
 			if not self.user:
 				raise AuthorizationError(detail="You must be logged in to perform this action")
-			if customer is False and self.user.is_customer is not None:
+			if customer is False and self.user.customer_id is not None:
 				raise AuthorizationError(detail="Customers are not allowed to perform this operation")
-			if admin is False and self.user.is_admin is not None:
+			if admin is False and self.user.admin_id is not None:
 				raise AuthorizationError(detail="Admins are not allowed to perform this operation")
-			if staff is False and self.user.is_staff is not None:
+			if staff is False and self.user.staff_id is not None:
 				raise AuthorizationError(detail="Staffs are not allowed to perform this operation")
 			return await func(self, *args, **kwargs)
 		return inner
